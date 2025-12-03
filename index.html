@@ -3,223 +3,176 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AR Business Card | AdViz</title>
-  
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <title>AR Business Card</title>
 
+  <!-- 1. STYLES: Define these BEFORE scripts to prevent white flash -->
   <style>
-    /* 1. UI & LAYOUT STYLES */
-    body {
+    /* Force dark background immediately */
+    html, body {
       margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
       overflow: hidden;
       font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #000;
     }
 
-    /* Loading Screen */
-    #loading-screen {
+    /* SPLASH SCREEN (Required for iOS/Android permissions) */
+    #splash-screen {
       position: fixed;
-      z-index: 999;
+      z-index: 9999;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: #111;
+      background: #000000;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      transition: opacity 0.5s;
-    }
-    .loader {
-      border: 4px solid #333;
-      border-top: 4px solid #00d2ff;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin-bottom: 15px;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-    /* Scan Overlay (UI Hints) */
-    #scan-overlay {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; /* Let clicks pass through to 3D scene */
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: center;
-      padding-bottom: 50px;
-      background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.3) 100%);
-    }
-
-    .scan-guide {
-      color: rgba(255,255,255,0.8);
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 20px;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    }
-    
-    .scan-frame {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 60vw;
-      height: 60vw;
-      border: 2px dashed rgba(255, 255, 255, 0.3);
-      border-radius: 20px;
-      box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
-    }
-
-    /* Watermark */
-    #watermark {
-      position: fixed;
-      top: 15px;
-      right: 15px;
-      color: rgba(255, 255, 255, 0.5);
-      font-size: 10px;
-      z-index: 20;
-      pointer-events: none;
-      font-weight: bold;
-      letter-spacing: 1px;
-    }
-
-    /* Fallback / Profile Card (Hidden by default) */
-    #fallback-ui {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(10, 10, 20, 0.95);
-      backdrop-filter: blur(10px);
-      z-index: 100;
-      display: none; /* Toggled via JS */
       flex-direction: column;
       align-items: center;
       justify-content: center;
       color: white;
       text-align: center;
+      background-image: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
     }
-    .profile-card {
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-      padding: 30px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      max-width: 80%;
-    }
-    .profile-btn {
-      display: block;
-      margin-top: 20px;
-      padding: 12px 24px;
-      background: #00d2ff;
-      color: #000;
-      text-decoration: none;
+
+    .start-btn {
+      padding: 15px 40px;
+      font-size: 18px;
       font-weight: bold;
+      color: #000;
+      background: #00d2ff;
+      border: none;
       border-radius: 30px;
-      text-transform: uppercase;
-      font-size: 14px;
-    }
-    #manual-show-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: rgba(255,255,255,0.15);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.2);
-      z-index: 50;
       cursor: pointer;
+      margin-top: 20px;
+      box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+      transition: transform 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .start-btn:active { transform: scale(0.95); }
+
+    /* ERROR LOGGER (So you can see what's wrong on mobile) */
+    #debug-console {
+      position: fixed;
+      bottom: 0; left: 0; width: 100%;
+      max-height: 150px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.8);
+      color: #ff4444;
+      font-family: monospace;
+      font-size: 10px;
+      padding: 10px;
+      z-index: 10000;
+      pointer-events: none;
+      display: none; /* Hidden by default, shown on error */
+    }
+
+    /* CUSTOM SCANNING OVERLAY */
+    #scan-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+      display: none; /* Hidden until started */
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .scan-guide {
+      width: 60vw;
+      height: 60vw;
+      border: 2px dashed rgba(255, 255, 255, 0.5);
+      border-radius: 20px;
+      box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5); /* Dim background */
+    }
+    .scan-text {
+      color: white;
+      margin-top: 20px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    /* WATERMARK */
+    .watermark {
+      position: fixed;
+      top: 10px; right: 10px;
+      color: rgba(255,255,255,0.4);
+      font-size: 10px;
+      z-index: 20;
     }
   </style>
 
+  <!-- 2. SCRIPTS: Load A-Frame and MindAR -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+
   <script>
-    // 2. JAVASCRIPT LOGIC
+    // ERROR HANDLING UTILS
+    window.onerror = function(message, source, lineno, colno, error) {
+      const debug = document.getElementById('debug-console');
+      if(debug) {
+        debug.style.display = 'block';
+        debug.innerHTML += `<div>ERROR: ${message}</div>`;
+      }
+    };
+
     document.addEventListener("DOMContentLoaded", function() {
-      const sceneEl = document.querySelector('a-scene');
-      const arSystem = sceneEl.systems["mindar-image-system"];
-      const loadingScreen = document.getElementById('loading-screen');
+      const splash = document.getElementById('splash-screen');
+      const startBtn = document.getElementById('start-btn');
+      const scene = document.querySelector('a-scene');
       const scanOverlay = document.getElementById('scan-overlay');
-      const fallbackUI = document.getElementById('fallback-ui');
 
-      // --- CUSTOMIZATION: EDIT LINKS HERE ---
-      const links = {
-        linkedin: "https://www.linkedin.com",
-        web: "https://www.adviz.co",
-        email: "mailto:hello@adviz.co"
-      };
-
-      // Handle Scene Loading
-      sceneEl.addEventListener('loaded', () => {
-        // Wait a moment then fade out loader
-        setTimeout(() => {
-          loadingScreen.style.opacity = '0';
-          setTimeout(() => loadingScreen.style.display = 'none', 500);
-        }, 1000);
+      // --- 1. START BUTTON LOGIC ---
+      startBtn.addEventListener('click', () => {
+        splash.style.display = 'none';
+        scanOverlay.style.display = 'flex';
+        
+        // This triggers the AR system to start using the camera
+        // Note: MindAR auto-starts on load, but we hid the UI. 
+        // If it was paused, we would resume here.
       });
 
-      // Handle Target Found/Lost
+      // --- 2. EVENTS ---
       const target = document.querySelector('[mindar-image-target]');
       
+      // Target Found: Hide the scan guide
       target.addEventListener("targetFound", event => {
-        console.log("Target Found");
-        scanOverlay.style.opacity = '0'; // Hide scan helper
+        console.log("Target found");
+        scanOverlay.style.display = 'none';
       });
 
+      // Target Lost: Show the scan guide again
       target.addEventListener("targetLost", event => {
-        console.log("Target Lost");
-        scanOverlay.style.opacity = '1'; // Show scan helper
+        console.log("Target lost");
+        scanOverlay.style.display = 'flex';
       });
 
-      // Handle AR Ready (Camera started)
-      sceneEl.addEventListener("arReady", (event) => {
-        console.log("MindAR is ready");
+      // AR Ready
+      scene.addEventListener("arReady", (event) => {
+        console.log("AR System Ready");
       });
 
-      // Handle AR Error (Camera blocked etc)
-      sceneEl.addEventListener("arError", (event) => {
-        console.log("Error starting AR");
-        fallbackUI.style.display = "flex"; // Show fallback immediately
+      // AR Error
+      scene.addEventListener("arError", (event) => {
+        document.getElementById('debug-console').style.display = 'block';
+        document.getElementById('debug-console').innerHTML += "<div>AR ERROR: Camera access denied or not supported.</div>";
       });
-
-      // Click Handlers for 3D Buttons
-      // Note: We use global functions to keep it simple within A-Frame events
-      window.openLink = function(type) {
-        if(links[type]) window.open(links[type], '_blank');
-      };
-
-      // Manual Fallback Toggle
-      document.getElementById('manual-show-btn').addEventListener('click', () => {
-        fallbackUI.style.display = "flex";
-      });
-      document.getElementById('close-fallback').addEventListener('click', () => {
-        fallbackUI.style.display = "none";
-      });
+      
+      // --- 3. LINK HANDLERS ---
+      window.openLink = function(url) {
+        window.open(url, '_blank');
+      }
     });
-    
-    // Custom Component for hover animation
+
+    // HOVER ANIMATION COMPONENT
     AFRAME.registerComponent('hover-scale', {
       init: function () {
         var el = this.el;
         el.addEventListener('mouseenter', function () {
-          el.setAttribute('animation', {
-            property: 'scale',
-            to: '1.2 1.2 1.2',
-            dur: 200,
-            easing: 'easeOutQuad'
-          });
+          el.setAttribute('scale', '1.2 1.2 1.2');
         });
         el.addEventListener('mouseleave', function () {
-          el.setAttribute('animation', {
-            property: 'scale',
-            to: '1 1 1',
-            dur: 200,
-            easing: 'easeOutQuad'
-          });
+          el.setAttribute('scale', '1 1 1');
         });
       }
     });
@@ -227,84 +180,85 @@
 </head>
 <body>
 
-  <div id="loading-screen">
-    <div class="loader"></div>
-    <p>Initializing AR Experience...</p>
+  <!-- DEBUG CONSOLE (Hidden unless error) -->
+  <div id="debug-console"></div>
+
+  <!-- SPLASH SCREEN -->
+  <div id="splash-screen">
+    <h1>AR Business Card</h1>
+    <p style="opacity: 0.7; max-width: 300px; margin-bottom: 30px;">
+      Requires Camera Access.<br>Find good lighting.
+    </p>
+    <button id="start-btn" class="start-btn">Start Experience</button>
   </div>
 
-  <div id="watermark">Made with AdViz.co</div>
-
+  <!-- SCAN OVERLAY -->
   <div id="scan-overlay">
-    <div class="scan-frame"></div>
-    <div class="scan-guide">Scan Business Card</div>
+    <div class="scan-guide"></div>
+    <div class="scan-text">Point at Business Card</div>
   </div>
 
-  <button id="manual-show-btn">Can't scan?</button>
+  <div class="watermark">Made with AdViz.co</div>
 
-  <div id="fallback-ui">
-    <div class="profile-card">
-      <h1 style="margin:0; font-size:24px;">John Doe</h1>
-      <p style="color:#aaa; margin:5px 0 20px 0;">Founder & CEO</p>
-      <div style="width:50px; height:2px; background:#00d2ff; margin:0 auto 20px auto;"></div>
-      <p>Augmented Reality Expert</p>
-      <a href="https://www.adviz.co" class="profile-btn">Visit Website</a>
-      <p id="close-fallback" style="margin-top:15px; font-size:12px; opacity:0.5; cursor:pointer;">Close</p>
-    </div>
-  </div>
-
+  <!-- AR SCENE 
+       Note: uiLoading:no and uiScanning:no disable the default loading screens
+       so we can use our own custom ones.
+  -->
   <a-scene 
-    mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind; filterMinCF:0.0001; filterBeta: 0.001;" 
+    mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.mind; uiLoading: no; uiScanning: no; filterMinCF:0.0001; filterBeta: 0.001;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <img id="card-bg" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png" />
+      <img id="icon-web" src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png">
+      <img id="icon-linkedin" src="https://cdn-icons-png.flaticon.com/512/3536/3536505.png">
+      <img id="icon-email" src="https://cdn-icons-png.flaticon.com/512/542/542638.png">
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000; objects: .clickable"></a-camera>
 
+    <!-- AR TARGET -->
     <a-entity mindar-image-target="targetIndex: 0">
       
+      <!-- Content Container -->
       <a-entity scale="1 1 1">
+        
+        <!-- Background Darkening Pane -->
+        <a-plane color="#000" opacity="0.6" width="1.2" height="0.7" position="0 0 -0.01"></a-plane>
 
-        <a-plane color="#000" opacity="0.7" width="1.1" height="0.6" position="0 0 -0.01"></a-plane>
-        <a-plane color="#00d2ff" opacity="0.2" width="1.15" height="0.65" position="0 0 -0.02"></a-plane>
+        <!-- Name Text -->
+        <a-text value="JOHN DOE" color="#ffffff" align="center" width="2.8" position="0 0.2 0.01" font="roboto"></a-text>
+        <a-text value="Interactive Developer" color="#00d2ff" align="center" width="1.5" position="0 0.1 0.01" font="roboto"></a-text>
 
-        <a-text value="JOHN DOE" color="#ffffff" align="center" width="2.5" position="0 0.15 0.05" 
-          shader="msdf" font="https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/roboto/Roboto-Bold.json"></a-text>
-        <a-text value="CEO & FOUNDER" color="#00d2ff" align="center" width="1.2" position="0 0.08 0.05"
-          shader="msdf" font="https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/roboto/Roboto-Regular.json"></a-text>
-
-        <a-ring color="#00d2ff" radius-inner="0.6" radius-outer="0.62" position="0 0 0" opacity="0.5">
-          <a-animation attribute="rotation" to="0 0 360" dur="10000" repeat="indefinite" easing="linear"></a-animation>
+        <!-- Rotating Rings -->
+        <a-ring color="#00d2ff" radius-inner="0.6" radius-outer="0.62" opacity="0.6" position="0 0 -0.05">
+           <a-animation attribute="rotation" to="0 0 360" dur="8000" repeat="indefinite" easing="linear"></a-animation>
         </a-ring>
-        <a-torus color="#fff" radius="0.7" radius-tubular="0.002" segments-tubular="50" position="0 0 -0.1" opacity="0.3"
-           animation="property: rotation; to: 0 0 -360; loop: true; dur: 15000; easing: linear">
-        </a-torus>
 
-        <a-entity position="-0.3 -0.15 0.05" class="clickable" onclick="openLink('linkedin')" hover-scale>
-          <a-circle radius="0.08" color="#0077b5" opacity="0.9"></a-circle>
-          <a-text value="in" align="center" width="1.5" position="0 0 0.01"></a-text>
-          <a-text value="LINKEDIN" align="center" width="0.8" position="0 -0.12 0"></a-text>
+        <!-- Buttons -->
+        <!-- LinkedIn -->
+        <a-entity position="-0.25 -0.15 0.05" class="clickable" onclick="openLink('https://linkedin.com')" hover-scale>
+           <a-circle radius="0.08" color="#FFF"></a-circle>
+           <a-image src="#icon-linkedin" width="0.1" height="0.1" position="0 0 0.01"></a-image>
         </a-entity>
 
-        <a-entity position="0 -0.15 0.05" class="clickable" onclick="openLink('web')" hover-scale>
-          <a-circle radius="0.08" color="#ff0055" opacity="0.9"></a-circle>
-          <a-text value="WEB" align="center" width="1" position="0 0 0.01"></a-text>
+        <!-- Web -->
+        <a-entity position="0 -0.15 0.05" class="clickable" onclick="openLink('https://adviz.co')" hover-scale>
+           <a-circle radius="0.08" color="#FFF"></a-circle>
+           <a-image src="#icon-web" width="0.1" height="0.1" position="0 0 0.01"></a-image>
         </a-entity>
 
-        <a-entity position="0.3 -0.15 0.05" class="clickable" onclick="openLink('email')" hover-scale>
-          <a-circle radius="0.08" color="#ffaa00" opacity="0.9"></a-circle>
-          <a-text value="@" align="center" width="1.5" position="0 0.01 0.01"></a-text>
-          <a-text value="EMAIL" align="center" width="0.8" position="0 -0.12 0"></a-text>
+        <!-- Email -->
+        <a-entity position="0.25 -0.15 0.05" class="clickable" onclick="openLink('mailto:hello@adviz.co')" hover-scale>
+           <a-circle radius="0.08" color="#FFF"></a-circle>
+           <a-image src="#icon-email" width="0.1" height="0.1" position="0 0 0.01"></a-image>
         </a-entity>
-
-        <a-animation attribute="scale" from="0 0 0" to="1 1 1" dur="500" easing="easeOutElastic"></a-animation>
 
       </a-entity>
     </a-entity>
   </a-scene>
 </body>
 </html>
+
