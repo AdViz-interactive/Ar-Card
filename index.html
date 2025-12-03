@@ -2,170 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AR Business Card</title>
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <title>AR Business Card | AdViz</title>
 
-  <!-- 1. STYLES: Define these BEFORE scripts to prevent white flash -->
+  <!-- 1. LIBRARIES -->
+  <!-- A-Frame (1.2.0 is highly stable for AR.js) -->
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <!-- AR.js for A-Frame -->
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
   <style>
-    /* Force dark background immediately */
-    html, body {
+    /* 2. CSS STYLES */
+    body {
       margin: 0;
       padding: 0;
-      width: 100%;
-      height: 100%;
-      background-color: #000000;
       overflow: hidden;
       font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      /* CRITICAL: Ensure background is transparent so camera feed shows */
+      background-color: transparent !important; 
     }
 
-    /* SPLASH SCREEN (Required for iOS/Android permissions) */
-    #splash-screen {
+    /* UI Overlay */
+    #ui-layer {
       position: fixed;
-      z-index: 9999;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: #000000;
+      pointer-events: none; /* Let clicks pass through to 3D scene */
+      z-index: 10;
       display: flex;
       flex-direction: column;
+      justify-content: flex-end;
       align-items: center;
-      justify-content: center;
-      color: white;
-      text-align: center;
-      background-image: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+      padding-bottom: 20px;
     }
 
-    .start-btn {
-      padding: 15px 40px;
-      font-size: 18px;
-      font-weight: bold;
-      color: #000;
-      background: #00d2ff;
-      border: none;
-      border-radius: 30px;
-      cursor: pointer;
-      margin-top: 20px;
-      box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
-      transition: transform 0.2s;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    .start-btn:active { transform: scale(0.95); }
-
-    /* ERROR LOGGER (So you can see what's wrong on mobile) */
-    #debug-console {
+    /* Start/Splash Screen */
+    #splash {
       position: fixed;
-      bottom: 0; left: 0; width: 100%;
-      max-height: 150px;
-      overflow-y: auto;
-      background: rgba(0,0,0,0.8);
-      color: #ff4444;
-      font-family: monospace;
-      font-size: 10px;
-      padding: 10px;
-      z-index: 10000;
-      pointer-events: none;
-      display: none; /* Hidden by default, shown on error */
-    }
-
-    /* CUSTOM SCANNING OVERLAY */
-    #scan-overlay {
-      position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none;
-      z-index: 10;
-      display: none; /* Hidden until started */
+      background: rgba(0,0,0,0.85);
+      z-index: 999;
+      display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-    }
-    .scan-guide {
-      width: 60vw;
-      height: 60vw;
-      border: 2px dashed rgba(255, 255, 255, 0.5);
-      border-radius: 20px;
-      box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5); /* Dim background */
-    }
-    .scan-text {
       color: white;
-      margin-top: 20px;
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
+      text-align: center;
+      transition: opacity 0.5s;
     }
 
-    /* WATERMARK */
+    .btn {
+      background: #00d2ff;
+      color: #000;
+      border: none;
+      padding: 12px 30px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 30px;
+      margin-top: 20px;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+    }
+
     .watermark {
       position: fixed;
       top: 10px; right: 10px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.5);
       font-size: 10px;
+      font-weight: bold;
       z-index: 20;
+    }
+
+    /* Message when tracking is lost/searching */
+    .scan-hint {
+      color: white;
+      background: rgba(0,0,0,0.5);
+      padding: 8px 16px;
+      border-radius: 20px;
+      margin-bottom: 30px;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border: 1px solid rgba(255,255,255,0.2);
     }
   </style>
 
-  <!-- 2. SCRIPTS: Load A-Frame and MindAR -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-
   <script>
-    // ERROR HANDLING UTILS
-    window.onerror = function(message, source, lineno, colno, error) {
-      const debug = document.getElementById('debug-console');
-      if(debug) {
-        debug.style.display = 'block';
-        debug.innerHTML += `<div>ERROR: ${message}</div>`;
-      }
+    // 3. JAVASCRIPT LOGIC
+    
+    // Function to handle opening links
+    // We attach this to window so A-Frame onclick events can find it
+    window.openUrl = function(url) {
+      console.log("Opening: " + url);
+      window.open(url, '_blank');
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      const splash = document.getElementById('splash-screen');
+      const splash = document.getElementById('splash');
       const startBtn = document.getElementById('start-btn');
-      const scene = document.querySelector('a-scene');
-      const scanOverlay = document.getElementById('scan-overlay');
-
-      // --- 1. START BUTTON LOGIC ---
+      
+      // Start Button: Just hides splash. 
+      // AR.js starts camera automatically, but this ensures user interaction first.
       startBtn.addEventListener('click', () => {
-        splash.style.display = 'none';
-        scanOverlay.style.display = 'flex';
-        
-        // This triggers the AR system to start using the camera
-        // Note: MindAR auto-starts on load, but we hid the UI. 
-        // If it was paused, we would resume here.
+        splash.style.opacity = 0;
+        setTimeout(() => splash.style.display = 'none', 500);
       });
 
-      // --- 2. EVENTS ---
-      const target = document.querySelector('[mindar-image-target]');
-      
-      // Target Found: Hide the scan guide
-      target.addEventListener("targetFound", event => {
-        console.log("Target found");
-        scanOverlay.style.display = 'none';
+      // Marker Found/Lost Events
+      const marker = document.querySelector('a-marker');
+      const hint = document.querySelector('.scan-hint');
+
+      marker.addEventListener('markerFound', () => {
+        hint.innerHTML = "Interactive Card Detected";
+        hint.style.borderColor = "#00d2ff";
+        hint.style.color = "#00d2ff";
       });
 
-      // Target Lost: Show the scan guide again
-      target.addEventListener("targetLost", event => {
-        console.log("Target lost");
-        scanOverlay.style.display = 'flex';
+      marker.addEventListener('markerLost', () => {
+        hint.innerHTML = "Point camera at HIRO Marker";
+        hint.style.borderColor = "rgba(255,255,255,0.2)";
+        hint.style.color = "white";
       });
-
-      // AR Ready
-      scene.addEventListener("arReady", (event) => {
-        console.log("AR System Ready");
-      });
-
-      // AR Error
-      scene.addEventListener("arError", (event) => {
-        document.getElementById('debug-console').style.display = 'block';
-        document.getElementById('debug-console').innerHTML += "<div>AR ERROR: Camera access denied or not supported.</div>";
-      });
-      
-      // --- 3. LINK HANDLERS ---
-      window.openLink = function(url) {
-        window.open(url, '_blank');
-      }
     });
 
-    // HOVER ANIMATION COMPONENT
-    AFRAME.registerComponent('hover-scale', {
+    // A-Frame Component to handle hover effects
+    AFRAME.registerComponent('hover-animate', {
       init: function () {
         var el = this.el;
         el.addEventListener('mouseenter', function () {
@@ -180,85 +141,104 @@
 </head>
 <body>
 
-  <!-- DEBUG CONSOLE (Hidden unless error) -->
-  <div id="debug-console"></div>
-
-  <!-- SPLASH SCREEN -->
-  <div id="splash-screen">
-    <h1>AR Business Card</h1>
-    <p style="opacity: 0.7; max-width: 300px; margin-bottom: 30px;">
-      Requires Camera Access.<br>Find good lighting.
-    </p>
-    <button id="start-btn" class="start-btn">Start Experience</button>
-  </div>
-
-  <!-- SCAN OVERLAY -->
-  <div id="scan-overlay">
-    <div class="scan-guide"></div>
-    <div class="scan-text">Point at Business Card</div>
-  </div>
-
+  <!-- UI LAYERS -->
   <div class="watermark">Made with AdViz.co</div>
+  
+  <div id="splash">
+    <div style="width: 200px; text-align: center;">
+      <h1>AR Card</h1>
+      <p style="font-size: 14px; opacity: 0.8;">Look for the "HIRO" marker to see the experience.</p>
+      <button id="start-btn" class="btn">Start Camera</button>
+    </div>
+  </div>
 
-  <!-- AR SCENE 
-       Note: uiLoading:no and uiScanning:no disable the default loading screens
-       so we can use our own custom ones.
+  <div id="ui-layer">
+    <div class="scan-hint">Point camera at HIRO Marker</div>
+  </div>
+
+  <!-- 4. A-FRAME SCENE -->
+  <!-- 
+       embedded: helps integration with HTML layout
+       arjs: configures the AR tracking type (marker based is default)
+       vr-mode-ui="enabled: false": hides the VR goggles button
   -->
   <a-scene 
-    mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.mind; uiLoading: no; uiScanning: no; filterMinCF:0.0001; filterBeta: 0.001;" 
-    color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights" 
+    embedded 
+    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
     vr-mode-ui="enabled: false" 
-    device-orientation-permission-ui="enabled: false">
+    renderer="logarithmicDepthBuffer: true; colorManagement: true;">
 
+    <!-- ASSETS (Preload icons) -->
     <a-assets>
+      <img id="icon-linkedin" src="https://cdn-icons-png.flaticon.com/512/174/174857.png">
       <img id="icon-web" src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png">
-      <img id="icon-linkedin" src="https://cdn-icons-png.flaticon.com/512/3536/3536505.png">
-      <img id="icon-email" src="https://cdn-icons-png.flaticon.com/512/542/542638.png">
+      <img id="icon-email" src="https://cdn-icons-png.flaticon.com/512/732/732200.png">
+      <img id="profile-pic" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"> <!-- Placeholder avatar -->
     </a-assets>
 
-    <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000; objects: .clickable"></a-camera>
-
-    <!-- AR TARGET -->
-    <a-entity mindar-image-target="targetIndex: 0">
+    <!-- MARKER (preset="hiro") 
+         This is the standard, most stable marker. 
+         To use a custom marker, change to type="pattern" url="path/to/pattern.patt"
+    -->
+    <a-marker preset="hiro" emitevents="true" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
       
-      <!-- Content Container -->
-      <a-entity scale="1 1 1">
+      <!-- WRAPPER: Rotated -90 on X to stand up relative to the flat marker -->
+      <a-entity rotation="-90 0 0">
         
-        <!-- Background Darkening Pane -->
-        <a-plane color="#000" opacity="0.6" width="1.2" height="0.7" position="0 0 -0.01"></a-plane>
+        <!-- 1. MAIN CARD BACKGROUND -->
+        <!-- A glass-like pane floating above the marker -->
+        <a-entity position="0 0 0.5">
+          <a-plane width="2.5" height="1.5" color="#111" opacity="0.9"></a-plane>
+          <a-plane width="2.55" height="1.55" color="#00d2ff" opacity="0.3" position="0 0 -0.01"></a-plane>
+          
+          <!-- Profile Image -->
+          <a-image src="#profile-pic" width="0.8" height="0.8" position="-0.7 0 0.1"></a-image>
 
-        <!-- Name Text -->
-        <a-text value="JOHN DOE" color="#ffffff" align="center" width="2.8" position="0 0.2 0.01" font="roboto"></a-text>
-        <a-text value="Interactive Developer" color="#00d2ff" align="center" width="1.5" position="0 0.1 0.01" font="roboto"></a-text>
-
-        <!-- Rotating Rings -->
-        <a-ring color="#00d2ff" radius-inner="0.6" radius-outer="0.62" opacity="0.6" position="0 0 -0.05">
-           <a-animation attribute="rotation" to="0 0 360" dur="8000" repeat="indefinite" easing="linear"></a-animation>
-        </a-ring>
-
-        <!-- Buttons -->
-        <!-- LinkedIn -->
-        <a-entity position="-0.25 -0.15 0.05" class="clickable" onclick="openLink('https://linkedin.com')" hover-scale>
-           <a-circle radius="0.08" color="#FFF"></a-circle>
-           <a-image src="#icon-linkedin" width="0.1" height="0.1" position="0 0 0.01"></a-image>
+          <!-- Text Info -->
+          <a-text value="JOHN DOE" color="#FFF" align="left" position="-0.1 0.3 0.1" scale="1.2 1.2 1.2"></a-text>
+          <a-text value="Creative Tech Lead" color="#00d2ff" align="left" position="-0.1 0.1 0.1" scale="0.8 0.8 0.8"></a-text>
         </a-entity>
 
-        <!-- Web -->
-        <a-entity position="0 -0.15 0.05" class="clickable" onclick="openLink('https://adviz.co')" hover-scale>
-           <a-circle radius="0.08" color="#FFF"></a-circle>
-           <a-image src="#icon-web" width="0.1" height="0.1" position="0 0 0.01"></a-image>
+        <!-- 2. FLOATING SOCIAL ICONS -->
+        <!-- LinkedIn -->
+        <a-entity position="-0.8 -1.2 0.5" class="clickable" onclick="window.openUrl('https://linkedin.com')" hover-animate>
+          <a-circle color="#0077b5" radius="0.25"></a-circle>
+          <a-image src="#icon-linkedin" width="0.3" height="0.3" position="0 0 0.01"></a-image>
+          <a-text value="Connect" align="center" position="0 -0.4 0" width="2"></a-text>
+        </a-entity>
+
+        <!-- Website -->
+        <a-entity position="0 -1.2 0.5" class="clickable" onclick="window.openUrl('https://adviz.co')" hover-animate>
+           <a-circle color="#333" radius="0.25"></a-circle>
+           <a-image src="#icon-web" width="0.3" height="0.3" position="0 0 0.01"></a-image>
+           <a-text value="Website" align="center" position="0 -0.4 0" width="2"></a-text>
         </a-entity>
 
         <!-- Email -->
-        <a-entity position="0.25 -0.15 0.05" class="clickable" onclick="openLink('mailto:hello@adviz.co')" hover-scale>
-           <a-circle radius="0.08" color="#FFF"></a-circle>
-           <a-image src="#icon-email" width="0.1" height="0.1" position="0 0 0.01"></a-image>
+        <a-entity position="0.8 -1.2 0.5" class="clickable" onclick="window.openUrl('mailto:hello@adviz.co')" hover-animate>
+           <a-circle color="#ea4335" radius="0.25"></a-circle>
+           <a-image src="#icon-email" width="0.3" height="0.3" position="0 0 0.01"></a-image>
+           <a-text value="Email" align="center" position="0 -0.4 0" width="2"></a-text>
         </a-entity>
 
-      </a-entity>
+        <!-- 3. DECORATIVE ANIMATIONS -->
+        <!-- Spinning Ring -->
+        <a-ring color="#00d2ff" radius-inner="1.8" radius-outer="1.85" position="0 0 0.5">
+          <a-animation attribute="rotation" to="0 0 360" dur="10000" repeat="indefinite" easing="linear"></a-animation>
+        </a-ring>
+
+      </a-entity> <!-- End Wrapper -->
+      
+    </a-marker>
+
+    <!-- CAMERA -->
+    <!-- raycaster=objects: .clickable enables clicking only on the specific entities -->
+    <a-entity camera>
+      <a-cursor fuse="false" rayOrigin="mouse" raycaster="objects: .clickable" color="#00d2ff"></a-cursor>
     </a-entity>
+
   </a-scene>
 </body>
 </html>
+
 
