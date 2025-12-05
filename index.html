@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
     <title>AR Business Card | AdViz - QR Code Based</title>
     
-    <!-- A-Frame for 3D -->
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    
     <!-- QR Code Detection Library -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     
@@ -28,16 +25,6 @@
         
         #video { 
             display: none; 
-        }
-        
-        #overlay { 
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 10;
         }
         
         #ui-layer { 
@@ -139,6 +126,31 @@
         let ctx = null;
         let qrDetected = false;
         let lastQRData = null;
+        let frameCount = 0;
+        let detectionCooldown = 0;
+        
+        // Button tracking for clicks
+        const buttons = [
+            { x: 0, y: 0, width: 100, height: 80, label: 'Website', action: 'https://adviz.co', color: '#333' },
+            { x: 0, y: 0, width: 100, height: 80, label: 'Email', action: 'mailto:hello@adviz.co', color: '#ea4335' },
+            { x: 0, y: 0, width: 100, height: 80, label: 'LinkedIn', action: 'https://linkedin.com/company/adviz', color: '#0A66C2' }
+        ];
+        
+        // Handle button clicks
+        function handleCanvasClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            buttons.forEach(btn => {
+                if (x >= btn.x - btn.width/2 && x <= btn.x + btn.width/2 &&
+                    y >= btn.y - btn.height/2 && y <= btn.y + btn.height/2) {
+                    window.open(btn.action, '_blank');
+                }
+            });
+        }
+        
+        canvas.addEventListener('click', handleCanvasClick);
         
         // QR Code detection function
         function detectQRCode(imageData) {
@@ -154,30 +166,42 @@
         async function processFrame() {
             if (!video || !ctx) return;
             
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw video feed
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             
-            const code = detectQRCode(imageData);
+            frameCount++;
+            detectionCooldown--;
             
-            if (code) {
-                lastQRData = code;
-                qrDetected = true;
+            // Only detect QR every 4 frames to reduce CPU load
+            if (frameCount % 4 === 0 && detectionCooldown <= 0) {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = detectQRCode(imageData);
                 
-                // Draw detection box
-                drawQRBox(code.location);
-                
-                // Update hint
-                document.getElementById('hint').textContent = 'QR Code Detected! Rendering AR...';
-                document.getElementById('hint').style.borderColor = '#00d2ff';
-                document.getElementById('hint').style.color = '#00d2ff';
-                
-                // Trigger AR display
-                displayAROnQRCode(code);
-            } else {
-                qrDetected = false;
-                document.getElementById('hint').textContent = 'Point camera at any QR code';
-                document.getElementById('hint').style.borderColor = 'rgba(255,255,255,0.2)';
-                document.getElementById('hint').style.color = 'white';
+                if (code) {
+                    lastQRData = code;
+                    qrDetected = true;
+                    detectionCooldown = 30; // Keep tracking for 30 frames
+                    document.getElementById('hint').textContent = 'QR Code Detected! ✓';
+                    document.getElementById('hint').style.borderColor = '#00d2ff';
+                    document.getElementById('hint').style.color = '#00d2ff';
+                } else {
+                    if (detectionCooldown <= 0) {
+                        qrDetected = false;
+                        document.getElementById('hint').textContent = 'Point camera at any QR code';
+                        document.getElementById('hint').style.borderColor = 'rgba(255,255,255,0.2)';
+                        document.getElementById('hint').style.color = 'white';
+                    }
+                }
+            }
+            
+            // Display AR if QR is detected
+            if (qrDetected && lastQRData) {
+                drawQRBox(lastQRData.location);
+                displayAROnQRCode(lastQRData);
             }
             
             requestAnimationFrame(processFrame);
@@ -186,7 +210,7 @@
         // Draw detection box around QR code
         function drawQRBox(location) {
             ctx.strokeStyle = '#00d2ff';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y);
             ctx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
@@ -198,66 +222,80 @@
         
         // Display AR content on QR code
         function displayAROnQRCode(code) {
-            // Calculate QR code center and size
             const corners = code.location;
             const centerX = (corners.topLeftCorner.x + corners.bottomRightCorner.x) / 2;
             const centerY = (corners.topLeftCorner.y + corners.bottomRightCorner.y) / 2;
+            const qrSize = Math.abs(corners.bottomRightCorner.x - corners.topLeftCorner.x);
             
-            // Get canvas size
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            
-            // Render AR elements on canvas
             ctx.save();
             
-            // Draw animated ring
-            ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
-            ctx.beginPath();
-            const rotation = (Date.now() / 50) % 360;
-            ctx.arc(centerX, centerY, 60, 0, Math.PI * 2);
-            ctx.fill();
+            // Draw animated circle above QR
+            const time = Date.now() / 500;
+            const scale = 1 + Math.sin(time) * 0.2;
             
-            // Draw rotating circle
-            ctx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
+            // Outer glowing ring
+            ctx.strokeStyle = 'rgba(0, 210, 255, 0.6)';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(centerX, centerY, 50, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY - qrSize * 0.7, qrSize * 0.4 * scale, 0, Math.PI * 2);
             ctx.stroke();
             
-            // Draw text label
-            ctx.fillStyle = '#00d2ff';
-            ctx.font = 'bold 20px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('AR Card', centerX, centerY - 80);
+            // Inner filled circle
+            ctx.fillStyle = 'rgba(0, 210, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY - qrSize * 0.7, qrSize * 0.35, 0, Math.PI * 2);
+            ctx.fill();
             
-            // Draw interactive areas
-            drawARButtons(centerX, centerY);
+            // Title
+            ctx.fillStyle = '#00d2ff';
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('AdViz', centerX, centerY - qrSize * 0.7);
+            
+            // Draw large interactive buttons below QR
+            const buttonSpacing = qrSize * 0.35;
+            const buttonY = centerY + qrSize * 0.6;
+            
+            // Website button
+            buttons[0].x = centerX - buttonSpacing;
+            buttons[0].y = buttonY;
+            drawARButton(buttons[0]);
+            
+            // Email button
+            buttons[1].x = centerX;
+            buttons[1].y = buttonY;
+            drawARButton(buttons[1]);
+            
+            // LinkedIn button
+            buttons[2].x = centerX + buttonSpacing;
+            buttons[2].y = buttonY;
+            drawARButton(buttons[2]);
             
             ctx.restore();
         }
         
-        // Draw AR buttons/interaction points
-        function drawARButtons(centerX, centerY) {
-            const buttons = [
-                { x: centerX - 80, y: centerY + 80, label: 'Website', color: '#333' },
-                { x: centerX, y: centerY + 80, label: 'Email', color: '#ea4335' },
-                { x: centerX + 80, y: centerY + 80, label: 'LinkedIn', color: '#0A66C2' }
-            ];
+        // Draw individual AR button
+        function drawARButton(btn) {
+            // Button background circle
+            ctx.fillStyle = btn.color;
+            ctx.beginPath();
+            ctx.arc(btn.x, btn.y, 45, 0, Math.PI * 2);
+            ctx.fill();
             
-            buttons.forEach(btn => {
-                // Circle
-                ctx.fillStyle = btn.color;
-                ctx.beginPath();
-                ctx.arc(btn.x, btn.y, 30, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Label
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(btn.label, btn.x, btn.y);
-            });
+            // Button border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(btn.x, btn.y, 45, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Button label
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(btn.label, btn.x, btn.y);
         }
         
         // Initialize camera
@@ -288,6 +326,9 @@
                 // Hide splash screen
                 document.getElementById('splash').style.display = 'none';
                 
+                // Add pointer style
+                canvas.style.cursor = 'pointer';
+                
             } catch (err) {
                 console.error('Error accessing camera:', err);
                 alert('Unable to access camera. Please check permissions.');
@@ -297,11 +338,6 @@
         // Start button listener
         document.getElementById('start-btn').addEventListener('click', () => {
             initCamera();
-        });
-        
-        // Request camera permission on load
-        window.addEventListener('load', () => {
-            console.log('Page loaded. Ready to start AR.');
         });
     </script>
 </body>
