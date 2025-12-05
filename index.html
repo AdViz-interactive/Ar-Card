@@ -1,243 +1,308 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-  <title>AR Business Card | AdViz</title>
-
-  <!-- 1. LIBRARIES -->
-  <!-- A-Frame (1.2.0 is highly stable for AR.js) -->
-  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <!-- AR.js for A-Frame -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-
-  <style>
-    /* 2. CSS STYLES */
-    body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      /* CRITICAL: Ensure background is transparent so camera feed shows */
-      background-color: transparent !important; 
-    }
-
-    /* UI Overlay */
-    #ui-layer {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; /* Let clicks pass through to 3D scene */
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: center;
-      padding-bottom: 20px;
-    }
-
-    /* Start/Splash Screen */
-    #splash {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.85);
-      z-index: 999;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      text-align: center;
-      transition: opacity 0.5s;
-    }
-
-    .btn {
-      background: #00d2ff;
-      color: #000;
-      border: none;
-      padding: 12px 30px;
-      font-size: 16px;
-      font-weight: bold;
-      border-radius: 30px;
-      margin-top: 20px;
-      cursor: pointer;
-      pointer-events: auto;
-      box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
-    }
-
-    .watermark {
-      position: fixed;
-      top: 10px; right: 10px;
-      color: rgba(255,255,255,0.5);
-      font-size: 10px;
-      font-weight: bold;
-      z-index: 20;
-    }
-
-    /* Message when tracking is lost/searching */
-    .scan-hint {
-      color: white;
-      background: rgba(0,0,0,0.5);
-      padding: 8px 16px;
-      border-radius: 20px;
-      margin-bottom: 30px;
-      font-size: 12px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      border: 1px solid rgba(255,255,255,0.2);
-    }
-  </style>
-
-  <script>
-    // 3. JAVASCRIPT LOGIC
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    <title>AR Business Card | AdViz - QR Code Based</title>
     
-    // Function to handle opening links
-    // We attach this to window so A-Frame onclick events can find it
-    window.openUrl = function(url) {
-      console.log("Opening: " + url);
-      window.open(url, '_blank');
-    };
-
-    document.addEventListener("DOMContentLoaded", function() {
-      const splash = document.getElementById('splash');
-      const startBtn = document.getElementById('start-btn');
-      
-      // Start Button: Just hides splash. 
-      // AR.js starts camera automatically, but this ensures user interaction first.
-      startBtn.addEventListener('click', () => {
-        splash.style.opacity = 0;
-        setTimeout(() => splash.style.display = 'none', 500);
-      });
-
-      // Marker Found/Lost Events
-      const marker = document.querySelector('a-marker');
-      const hint = document.querySelector('.scan-hint');
-
-      marker.addEventListener('markerFound', () => {
-        hint.innerHTML = "Interactive Card Detected";
-        hint.style.borderColor = "#00d2ff";
-        hint.style.color = "#00d2ff";
-      });
-
-      marker.addEventListener('markerLost', () => {
-        hint.innerHTML = "Point camera at HIRO Marker";
-        hint.style.borderColor = "rgba(255,255,255,0.2)";
-        hint.style.color = "white";
-      });
-    });
-
-    // A-Frame Component to handle hover effects
-    AFRAME.registerComponent('hover-animate', {
-      init: function () {
-        var el = this.el;
-        el.addEventListener('mouseenter', function () {
-          el.setAttribute('scale', '1.2 1.2 1.2');
-        });
-        el.addEventListener('mouseleave', function () {
-          el.setAttribute('scale', '1 1 1');
-        });
-      }
-    });
-  </script>
+    <!-- A-Frame for 3D -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    
+    <!-- QR Code Detection Library -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #000;
+            overflow: hidden;
+        }
+        
+        #canvas { 
+            display: block; 
+            width: 100vw; 
+            height: 100vh;
+        }
+        
+        #video { 
+            display: none; 
+        }
+        
+        #overlay { 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #ui-layer { 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 20px;
+        }
+        
+        #splash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        
+        .splash-text {
+            font-size: 24px;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+        
+        .btn {
+            background: #00d2ff;
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 30px;
+            margin-top: 20px;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+        }
+        
+        .btn:hover {
+            background: #00b8d4;
+        }
+        
+        .scan-hint {
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 16px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .watermark {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            color: rgba(255,255,255,0.5);
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 20;
+        }
+    </style>
 </head>
 <body>
-
-  <!-- UI LAYERS -->
-  <div class="watermark">Made with AdViz.co</div>
-  
-  <div id="splash">
-    <div style="width: 200px; text-align: center;">
-      <h1>AR Card</h1>
-      <p style="font-size: 14px; opacity: 0.8;">Look for the "HIRO" marker to see the experience.</p>
-      <button id="start-btn" class="btn">Start Camera</button>
+    <canvas id="canvas"></canvas>
+    <video id="video"></video>
+    <div id="ui-layer">
+        <div class="scan-hint" id="hint">Point camera at any QR code</div>
     </div>
-  </div>
+    <div class="watermark">AdViz.co AR</div>
+    <div id="splash">
+        <div class="splash-text">AR Business Card</div>
+        <div>Point your camera at any QR code to see the AR experience</div>
+        <button class="btn" id="start-btn">Start Camera</button>
+    </div>
 
-  <div id="ui-layer">
-    <div class="scan-hint">Point camera at HIRO Marker</div>
-  </div>
-
-  <!-- 4. A-FRAME SCENE -->
-  <!-- 
-       embedded: helps integration with HTML layout
-       arjs: configures the AR tracking type (marker based is default)
-       vr-mode-ui="enabled: false": hides the VR goggles button
-  -->
-  <a-scene 
-    embedded 
-    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-    vr-mode-ui="enabled: false" 
-    renderer="logarithmicDepthBuffer: true; colorManagement: true;">
-
-    <!-- ASSETS (Preload icons) -->
-    <a-assets>
-      <img id="icon-linkedin" src="https://cdn-icons-png.flaticon.com/512/174/174857.png">
-      <img id="icon-web" src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png">
-      <img id="icon-email" src="https://cdn-icons-png.flaticon.com/512/732/732200.png">
-      <img id="profile-pic" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"> <!-- Placeholder avatar -->
-    </a-assets>
-
-    <!-- MARKER (type="pattern" url="https://raw.githubusercontent.com/AdViz-interactive/Ar-Card/main/pattern-my-designer-qr.patt") 
-         This is the standard, most stable marker. 
-         To use a custom marker, change to type="pattern" url="path/to/pattern.patt"
-    -->
-		<a-marker type="barcode" value="0" emitevents="true" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">      
-      <!-- WRAPPER: Rotated -90 on X to stand up relative to the flat marker -->
-      <a-entity rotation="-90 0 0">
+    <script>
+        // Global state
+        let cameraStream = null;
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let qrDetected = false;
+        let lastQRData = null;
         
-        <!-- 1. MAIN CARD BACKGROUND -->
-        <!-- A glass-like pane floating above the marker -->
-        <a-entity position="0 0 0.5">
-          <a-plane width="2.5" height="1.5" color="#111" opacity="0.9"></a-plane>
-          <a-plane width="2.55" height="1.55" color="#00d2ff" opacity="0.3" position="0 0 -0.01"></a-plane>
-          
-          <!-- Profile Image -->
-          <a-image src="#profile-pic" width="0.8" height="0.8" position="-0.7 0 0.1"></a-image>
-
-          <!-- Text Info -->
-          <a-text value="JOHN DOE" color="#FFF" align="left" position="-0.1 0.3 0.1" scale="1.2 1.2 1.2"></a-text>
-          <a-text value="Creative Tech Lead" color="#00d2ff" align="left" position="-0.1 0.1 0.1" scale="0.8 0.8 0.8"></a-text>
-        </a-entity>
-
-        <!-- 2. FLOATING SOCIAL ICONS -->
-        <!-- LinkedIn -->
-        <a-entity position="-0.8 -1.2 0.5" class="clickable" onclick="window.openUrl('https://linkedin.com')" hover-animate>
-          <a-circle color="#0077b5" radius="0.25"></a-circle>
-          <a-image src="#icon-linkedin" width="0.3" height="0.3" position="0 0 0.01"></a-image>
-          <a-text value="Connect" align="center" position="0 -0.4 0" width="2"></a-text>
-        </a-entity>
-
-        <!-- Website -->
-        <a-entity position="0 -1.2 0.5" class="clickable" onclick="window.openUrl('https://adviz.co')" hover-animate>
-           <a-circle color="#333" radius="0.25"></a-circle>
-           <a-image src="#icon-web" width="0.3" height="0.3" position="0 0 0.01"></a-image>
-           <a-text value="Website" align="center" position="0 -0.4 0" width="2"></a-text>
-        </a-entity>
-
-        <!-- Email -->
-        <a-entity position="0.8 -1.2 0.5" class="clickable" onclick="window.openUrl('mailto:hello@adviz.co')" hover-animate>
-           <a-circle color="#ea4335" radius="0.25"></a-circle>
-           <a-image src="#icon-email" width="0.3" height="0.3" position="0 0 0.01"></a-image>
-           <a-text value="Email" align="center" position="0 -0.4 0" width="2"></a-text>
-        </a-entity>
-
-        <!-- 3. DECORATIVE ANIMATIONS -->
-        <!-- Spinning Ring -->
-        <a-ring color="#00d2ff" radius-inner="1.8" radius-outer="1.85" position="0 0 0.5">
-          <a-animation attribute="rotation" to="0 0 360" dur="10000" repeat="indefinite" easing="linear"></a-animation>
-        </a-ring>
-
-      </a-entity> <!-- End Wrapper -->
-      
-    </a-marker>
-
-    <!-- CAMERA -->
-    <!-- raycaster=objects: .clickable enables clicking only on the specific entities -->
-    <a-entity camera>
-      <a-cursor fuse="false" rayOrigin="mouse" raycaster="objects: .clickable" color="#00d2ff"></a-cursor>
-    </a-entity>
-
-  </a-scene>
+        // QR Code detection function
+        function detectQRCode(imageData) {
+            try {
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                return code;
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        // Process video frame for QR detection
+        async function processFrame() {
+            if (!video || !ctx) return;
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            const code = detectQRCode(imageData);
+            
+            if (code) {
+                lastQRData = code;
+                qrDetected = true;
+                
+                // Draw detection box
+                drawQRBox(code.location);
+                
+                // Update hint
+                document.getElementById('hint').textContent = 'QR Code Detected! Rendering AR...';
+                document.getElementById('hint').style.borderColor = '#00d2ff';
+                document.getElementById('hint').style.color = '#00d2ff';
+                
+                // Trigger AR display
+                displayAROnQRCode(code);
+            } else {
+                qrDetected = false;
+                document.getElementById('hint').textContent = 'Point camera at any QR code';
+                document.getElementById('hint').style.borderColor = 'rgba(255,255,255,0.2)';
+                document.getElementById('hint').style.color = 'white';
+            }
+            
+            requestAnimationFrame(processFrame);
+        }
+        
+        // Draw detection box around QR code
+        function drawQRBox(location) {
+            ctx.strokeStyle = '#00d2ff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y);
+            ctx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
+            ctx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y);
+            ctx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
+            ctx.closePath();
+            ctx.stroke();
+        }
+        
+        // Display AR content on QR code
+        function displayAROnQRCode(code) {
+            // Calculate QR code center and size
+            const corners = code.location;
+            const centerX = (corners.topLeftCorner.x + corners.bottomRightCorner.x) / 2;
+            const centerY = (corners.topLeftCorner.y + corners.bottomRightCorner.y) / 2;
+            
+            // Get canvas size
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            
+            // Render AR elements on canvas
+            ctx.save();
+            
+            // Draw animated ring
+            ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
+            ctx.beginPath();
+            const rotation = (Date.now() / 50) % 360;
+            ctx.arc(centerX, centerY, 60, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw rotating circle
+            ctx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 50, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Draw text label
+            ctx.fillStyle = '#00d2ff';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('AR Card', centerX, centerY - 80);
+            
+            // Draw interactive areas
+            drawARButtons(centerX, centerY);
+            
+            ctx.restore();
+        }
+        
+        // Draw AR buttons/interaction points
+        function drawARButtons(centerX, centerY) {
+            const buttons = [
+                { x: centerX - 80, y: centerY + 80, label: 'Website', color: '#333' },
+                { x: centerX, y: centerY + 80, label: 'Email', color: '#ea4335' },
+                { x: centerX + 80, y: centerY + 80, label: 'LinkedIn', color: '#0A66C2' }
+            ];
+            
+            buttons.forEach(btn => {
+                // Circle
+                ctx.fillStyle = btn.color;
+                ctx.beginPath();
+                ctx.arc(btn.x, btn.y, 30, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Label
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(btn.label, btn.x, btn.y);
+            });
+        }
+        
+        // Initialize camera
+        async function initCamera() {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                video = document.getElementById('video');
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d');
+                
+                // Set canvas size
+                canvas.width = 1280;
+                canvas.height = 720;
+                
+                video.srcObject = cameraStream;
+                video.play();
+                
+                // Start processing frames
+                processFrame();
+                
+                // Hide splash screen
+                document.getElementById('splash').style.display = 'none';
+                
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Unable to access camera. Please check permissions.');
+            }
+        }
+        
+        // Start button listener
+        document.getElementById('start-btn').addEventListener('click', () => {
+            initCamera();
+        });
+        
+        // Request camera permission on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded. Ready to start AR.');
+        });
+    </script>
 </body>
 </html>
-
-
